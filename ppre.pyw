@@ -68,6 +68,7 @@ class MainWindow(QMainWindow, ui_ppremain.Ui_MainWindow):
 		self.setupUi(self)
 		self.updateUi()
 		self.romname=""
+		self.associationState = 0
 		#print scripts.cmd
 		#self.Of =(map table offset,invalid script begin, invalid script end,pl tutmoves ofset, types)
 		#self.TN=(locations,type,ability,items,moves,pokenames,height,weight, description,flavor text,forms, class names, trainer names, trainer text
@@ -96,11 +97,11 @@ class MainWindow(QMainWindow, ui_ppremain.Ui_MainWindow):
 			return romerror.noValue()
 		if not self.outputNameEdit.text():
 			return romerror.noValue()
-		self.statusbar.showMessage("Creating Patch....")
+		self.statusbar.showMessage("Applying Patch....")
 		if os.name == 'nt':
-			subprocess.call(["xdelta"] + ["delta", str(self.nameEdit.text()), str(self.outputNameEdit.text()),str(self.patchNameEdit.text())])
+			subprocess.call(["xdelta"] + ["patch",str(self.patchNameEdit.text()), str(self.nameEdit.text()), str(self.outputNameEdit.text())])
 		if os.name == "posix":
-			os.system("wine xdelta.exe "+"delta "+str(self.nameEdit.text())+" "+str(self.outputNameEdit.text())+" "+str(self.patchNameEdit.text()))
+			os.system("wine xdelta.exe "+"patch "+str(self.patchNameEdit.text())+" "+str(self.nameEdit.text())+" "+str(self.outputNameEdit.text()))
 		
 		self.statusbar.showMessage("Press Open ROM to load the new ROM.",4000)
 		self.nameEdit.setText(self.outputNameEdit.text())
@@ -135,6 +136,7 @@ class MainWindow(QMainWindow, ui_ppremain.Ui_MainWindow):
 		self.DT={}
 		if self.ID == 0x5353:
 			self.romname="Soul Silver"
+			self.associationState = 1
 			if self.lang==0x4A:
 				self.Of=(0xE56F0,10000 ,0)
 				self.TN=(427,724,711,219,739,232,801,799,803,792,790,720,719)
@@ -145,6 +147,7 @@ class MainWindow(QMainWindow, ui_ppremain.Ui_MainWindow):
 				self.DT={"move":750,"contest":207,"type":735}
 		elif self.ID == 0x4748:
 			self.romname="Heart Gold"
+			self.associationState = 1
 			if self.lang==0x4A:
 				self.Of=(0xE56F0,501 ,1050 )
 				self.TN=(427,724,711,219,739,232,801,799,803,791,790,720,719)
@@ -153,8 +156,12 @@ class MainWindow(QMainWindow, ui_ppremain.Ui_MainWindow):
 				self.Of=(0xE56F0,10000 ,0)
 				self.TN=(279,735,720,222,750,237,814,812,803,823,802,730,729)#location names = 279?
 				self.DT={"move":750,"contest":207,"type":735}
+		elif self.ID == 0x57:
+			self.romname = "White"
+			self.associationState = 1
 		elif self.ID == 0x4C50:
 			self.romname="Platinum"
+			self.associationState = 0
 			self.DT={"move":647,"contest":208,"type":624}
 			if self.lang==0x44:
 				self.Of=(0xE6074,501, 1050 )
@@ -181,6 +188,7 @@ class MainWindow(QMainWindow, ui_ppremain.Ui_MainWindow):
 				self.TN=(433,624,610,392,647,412,709,707,722,706,697,619,618,613 )
 		elif self.ID== 0x50:
 			self.romname="Pearl"
+			self.associationState = 0
 			if self.lang==0x4A:
 				self.Of=(0xF0C2C, )
 				self.TN=(374,555,544,341,575,356,606,605,607,602,600,560,559,555)#change tr
@@ -204,6 +212,7 @@ class MainWindow(QMainWindow, ui_ppremain.Ui_MainWindow):
 				self.TN=(376,557,546,342,577,357,608,606,609,603,602,560,559,555)#change tr
 		elif self.ID==0x44:
 			self.romname="Diamond"
+			self.associationState = 0
 			if self.lang==0x4A:
 				self.Of=(0xF0C28, )
 				self.TN=(374,555,544,341,575,356,606,605,607,601,600,560,559,555)#change tr
@@ -225,6 +234,9 @@ class MainWindow(QMainWindow, ui_ppremain.Ui_MainWindow):
 			elif self.lang==0x4B:
 				self.Of=(0xEA408, )
 				self.TN=(376,557,546,342,577,357,608,606,609,603,602,560,559,555)#change tr
+		if self.associationState == 1:#check for uncompressed ARM9
+			if os.path.getsize(self.rom.getFolder()+"/arm9.bin") > 1048576:
+				self.associationState = 2
 		self.defMNIndex()
 		"""self.archive = ReadMsgNarc()
 		binary=poketext.PokeTextData(self.archive.gmif.files[self.TN[0]])
@@ -314,6 +326,13 @@ def getLang():
 	id=ds.readUInt16()&0xFF
 	fh.close()
 	return id
+narcfiles = {"pokemon":{0x4748:"/a/0/0/2",0x57:"/a/0/1/6",0x4c50:"/poketool/personal/pl_personal.narc",0x44:"/poketool/personal/personal.narc"}}
+def ReadNARCFile(context):
+	filename = mw.rom.getFolder()+narcfiles[context][mw.ID]
+	f = open(filename, "rb")
+	d = f.read()
+	f.close()
+	return narc.NARC(d)
 def ReadMapName():
 	mapnamefilename=mw.rom.getFolder()+"/root/fielddata/maptable/mapname.bin"
 	fh=QFile(mapnamefilename)
@@ -365,6 +384,8 @@ def ReadTrNarc():
 		filename = mw.rom.getFolder()+"/root/a/0/5/5"
 	elif mw.ID== 0x4748:
 		filename = mw.rom.getFolder()+"/root/a/0/5/5"
+	elif mw.ID == 0x57:
+		filename = mw.rom.getFolder()+"/root/a/0/9/2"
 	else:
 		filename = mw.rom.getFolder()+"/root/poketool/trainer/trdata.narc"
 	f = open(filename, "rb")
@@ -376,6 +397,8 @@ def ReadTrPokeNarc():
 		filename = mw.rom.getFolder()+"/root/a/0/5/6"
 	elif mw.ID== 0x4748:
 		filename = mw.rom.getFolder()+"/root/a/0/5/6"
+	elif mw.ID == 0x57:
+		filename = mw.rom.getFolder()+"/root/a/0/9/3"
 	else:
 		filename = mw.rom.getFolder()+"/root/poketool/trainer/trpoke.narc"
 	f = open(filename, "rb")
@@ -398,6 +421,8 @@ def ReadEvoNarc():
 		filename = mw.rom.getFolder()+"/root/a/0/3/4"
 	elif mw.ID== 0x4748:
 		filename = mw.rom.getFolder()+"/root/a/0/3/4"
+	elif mw.ID == 0x57:
+		filename = mw.rom.getFolder()+"/root/a/0/1/9"
 	else:
 		filename = mw.rom.getFolder()+"/root/poketool/personal/evo.narc"
 	f = open(filename, "rb")
@@ -556,7 +581,7 @@ class PokeEditDlg(QDialog, ui_pprepokeedit.Ui_PokeEditDlg):
 	def __init__(self,parent=None):
 		super(PokeEditDlg,self).__init__(parent)
 		self.setupUi(self)
-		self.personal=ReadPersonalNarc()
+		self.personal=ReadNARCFile("pokemon")
 		self.archive = ReadMsgNarc()
 		self.moves=ReadWOTblNarc()
 		self.evos=ReadEvoNarc()
@@ -1013,106 +1038,22 @@ class PokeEditDlg(QDialog, ui_pprepokeedit.Ui_PokeEditDlg):
 		self.ability2.setCurrentIndex(self.temp[25])
 		self.runChance.setValue(self.temp[26])
 		self.colorVal.setValue(self.temp[27])
-		self.checkBoxHandle(self.tm1,self.temp[28]&1) 
-		self.checkBoxHandle(self.tm2,(self.temp[28]>>1)&1)
-		self.checkBoxHandle(self.tm3,(self.temp[28]>>2)&1)
-		self.checkBoxHandle(self.tm4,(self.temp[28]>>3)&1)
-		self.checkBoxHandle(self.tm5,(self.temp[28]>>4)&1)
-		self.checkBoxHandle(self.tm6,(self.temp[28]>>5)&1)
-		self.checkBoxHandle(self.tm7,(self.temp[28]>>6)&1)
-		self.checkBoxHandle(self.tm8,(self.temp[28]>>7)&1)
-		self.checkBoxHandle(self.tm9,self.temp[29]&1) 
-		self.checkBoxHandle(self.tm10,(self.temp[29]>>1)&1)
-		self.checkBoxHandle(self.tm11,(self.temp[29]>>2)&1)
-		self.checkBoxHandle(self.tm12,(self.temp[29]>>3)&1)
-		self.checkBoxHandle(self.tm13,(self.temp[29]>>4)&1)
-		self.checkBoxHandle(self.tm14,(self.temp[29]>>5)&1)
-		self.checkBoxHandle(self.tm15,(self.temp[29]>>6)&1)
-		self.checkBoxHandle(self.tm16,(self.temp[29]>>7)&1)
-		self.checkBoxHandle(self.tm17,self.temp[30]&1) 
-		self.checkBoxHandle(self.tm18,(self.temp[30]>>1)&1)
-		self.checkBoxHandle(self.tm19,(self.temp[30]>>2)&1)
-		self.checkBoxHandle(self.tm20,(self.temp[30]>>3)&1)
-		self.checkBoxHandle(self.tm21,(self.temp[30]>>4)&1)
-		self.checkBoxHandle(self.tm22,(self.temp[30]>>5)&1)
-		self.checkBoxHandle(self.tm23,(self.temp[30]>>6)&1)
-		self.checkBoxHandle(self.tm24,(self.temp[30]>>7)&1)
-		self.checkBoxHandle(self.tm25,self.temp[31]&1) 
-		self.checkBoxHandle(self.tm26,(self.temp[31]>>1)&1)
-		self.checkBoxHandle(self.tm27,(self.temp[31]>>2)&1)
-		self.checkBoxHandle(self.tm28,(self.temp[31]>>3)&1)
-		self.checkBoxHandle(self.tm29,(self.temp[31]>>4)&1)
-		self.checkBoxHandle(self.tm30,(self.temp[31]>>5)&1)
-		self.checkBoxHandle(self.tm31,(self.temp[31]>>6)&1)
-		self.checkBoxHandle(self.tm32,(self.temp[31]>>7)&1)
-		self.checkBoxHandle(self.tm33,self.temp[32]&1) 
-		self.checkBoxHandle(self.tm34,(self.temp[32]>>1)&1)
-		self.checkBoxHandle(self.tm35,(self.temp[32]>>2)&1)
-		self.checkBoxHandle(self.tm36,(self.temp[32]>>3)&1)
-		self.checkBoxHandle(self.tm37,(self.temp[32]>>4)&1)
-		self.checkBoxHandle(self.tm38,(self.temp[32]>>5)&1)
-		self.checkBoxHandle(self.tm39,(self.temp[32]>>6)&1)
-		self.checkBoxHandle(self.tm40,(self.temp[32]>>7)&1)
-		self.checkBoxHandle(self.tm41,self.temp[33]&1) 
-		self.checkBoxHandle(self.tm42,(self.temp[33]>>1)&1)
-		self.checkBoxHandle(self.tm43,(self.temp[33]>>2)&1)
-		self.checkBoxHandle(self.tm44,(self.temp[33]>>3)&1)
-		self.checkBoxHandle(self.tm45,(self.temp[33]>>4)&1)
-		self.checkBoxHandle(self.tm46,(self.temp[33]>>5)&1)
-		self.checkBoxHandle(self.tm47,(self.temp[33]>>6)&1)
-		self.checkBoxHandle(self.tm48,(self.temp[33]>>7)&1)
-		self.checkBoxHandle(self.tm49,self.temp[34]&1) 
-		self.checkBoxHandle(self.tm50,(self.temp[34]>>1)&1)
-		self.checkBoxHandle(self.tm51,(self.temp[34]>>2)&1)
-		self.checkBoxHandle(self.tm52,(self.temp[34]>>3)&1)
-		self.checkBoxHandle(self.tm53,(self.temp[34]>>4)&1)
-		self.checkBoxHandle(self.tm54,(self.temp[34]>>5)&1)
-		self.checkBoxHandle(self.tm55,(self.temp[34]>>6)&1)
-		self.checkBoxHandle(self.tm56,(self.temp[34]>>7)&1)
-		self.checkBoxHandle(self.tm57,self.temp[35]&1) 
-		self.checkBoxHandle(self.tm58,(self.temp[35]>>1)&1)
-		self.checkBoxHandle(self.tm59,(self.temp[35]>>2)&1)
-		self.checkBoxHandle(self.tm60,(self.temp[35]>>3)&1)
-		self.checkBoxHandle(self.tm61,(self.temp[35]>>4)&1)
-		self.checkBoxHandle(self.tm62,(self.temp[35]>>5)&1)
-		self.checkBoxHandle(self.tm63,(self.temp[35]>>6)&1)
-		self.checkBoxHandle(self.tm64,(self.temp[35]>>7)&1)
-		self.checkBoxHandle(self.tm65,self.temp[36]&1) 
-		self.checkBoxHandle(self.tm66,(self.temp[36]>>1)&1)
-		self.checkBoxHandle(self.tm67,(self.temp[36]>>2)&1)
-		self.checkBoxHandle(self.tm68,(self.temp[36]>>3)&1)
-		self.checkBoxHandle(self.tm69,(self.temp[36]>>4)&1)
-		self.checkBoxHandle(self.tm70,(self.temp[36]>>5)&1)
-		self.checkBoxHandle(self.tm71,(self.temp[36]>>6)&1)
-		self.checkBoxHandle(self.tm72,(self.temp[36]>>7)&1)
-		self.checkBoxHandle(self.tm73,self.temp[37]&1) 
-		self.checkBoxHandle(self.tm74,(self.temp[37]>>1)&1)
-		self.checkBoxHandle(self.tm75,(self.temp[37]>>2)&1)
-		self.checkBoxHandle(self.tm76,(self.temp[37]>>3)&1)
-		self.checkBoxHandle(self.tm77,(self.temp[37]>>4)&1)
-		self.checkBoxHandle(self.tm78,(self.temp[37]>>5)&1)
-		self.checkBoxHandle(self.tm79,(self.temp[37]>>6)&1)
-		self.checkBoxHandle(self.tm80,(self.temp[37]>>7)&1)
-		self.checkBoxHandle(self.tm81,self.temp[38]&1) 
-		self.checkBoxHandle(self.tm82,(self.temp[38]>>1)&1)
-		self.checkBoxHandle(self.tm83,(self.temp[38]>>2)&1)
-		self.checkBoxHandle(self.tm84,(self.temp[38]>>3)&1)
-		self.checkBoxHandle(self.tm85,(self.temp[38]>>4)&1)
-		self.checkBoxHandle(self.tm86,(self.temp[38]>>5)&1)
-		self.checkBoxHandle(self.tm87,(self.temp[38]>>6)&1)
-		self.checkBoxHandle(self.tm88,(self.temp[38]>>7)&1)
-		self.checkBoxHandle(self.tm89,self.temp[39]&1) 
-		self.checkBoxHandle(self.tm90,(self.temp[39]>>1)&1)
-		self.checkBoxHandle(self.tm91,(self.temp[39]>>2)&1)
-		self.checkBoxHandle(self.tm92,(self.temp[39]>>3)&1)
-		self.checkBoxHandle(self.hm1,(self.temp[39]>>4)&1) 
-		self.checkBoxHandle(self.hm2,(self.temp[39]>>5)&1)
-		self.checkBoxHandle(self.hm3,(self.temp[39]>>6)&1)
-		self.checkBoxHandle(self.hm4,(self.temp[39]>>7)&1)
-		self.checkBoxHandle(self.hm5,(self.temp[40])&1)
-		self.checkBoxHandle(self.hm6,(self.temp[40]>>1)&1)
-		self.checkBoxHandle(self.hm7,(self.temp[40]>>2)&1)
-		self.checkBoxHandle(self.hm8,(self.temp[40]>>3)&1)
+		tmp = 28
+		index = 0
+		TM = "tm"
+		TMcap = "TM"
+		off = -1
+		for tmnum in range(0,100):
+			eval("self.checkBoxHandle(self.%s%i,(self.temp[%i]>>%i)&1)"%(TM,tmnum-off,tmp,index))
+			eval("self.%s%i.setText('%s%02i')"%(TM,tmnum-off,TMcap,tmnum-off))
+			index += 1
+			if index == 8:
+				index = 0
+				tmp += 1
+			if tmnum == 91:
+				off = 91
+				TM = "hm"
+				TMcap = "HM"
 		self.moveLvl1.setValue(self.temp[41]>>9)
 		self.moveLvl2.setValue(self.temp[42]>>9)
 		self.moveLvl3.setValue(self.temp[43]>>9)
@@ -1809,6 +1750,16 @@ class MapDlg(QDialog, ui_ppremapedit.Ui_mapDlg):
 	def handleScriptUrl(self,url):
 		#using QUrl
 		self.gotoMapTab(str(url.scheme()).capitalize(),int(url.authority()))
+	def contextMenuFind(self,pos):
+		tabs = ["scr","func","mov"]
+		tabname = {"scr":"script","func":"func","mov":"mov"}
+		tab = tabs[self.tabWidget.currentIndex()]
+		t = eval("self.%sTabWidget.currentIndex()"%tabname[tab])
+		#menu = QtGui.QMenu(self.scriptTabs[tab][t][1])
+		#findact = QtGui.QAction("Find")
+		#menu.addAction(findact)
+		#menu.exec_(self.scriptTabs[tab][t][1].mapToGlobal(pos))
+		print tab,t
 	def updateMapData(self,n):
 		if not self.loading:
 			num=self.chooseMap.currentIndex()
@@ -2454,6 +2405,8 @@ class MapDlg(QDialog, ui_ppremapedit.Ui_mapDlg):
 						else:
 							name+=" R"+str(num2)
 						name+="-"+cC[6]+str(cC[7])
+					elif cC[3]=='S':
+						name+=" "+cC[3:]
 			elif cC[0]=='L':
 				num=10*int(cC[1])+int(cC[2])
 				if mw.lakes[num-1][0]!=0xFF:
@@ -3038,52 +2991,1511 @@ class AbilityDlg(QDialog, ui_ppreabilityedit.Ui_AbilityEditDlg):
 				print "done"
 			else:
 				ts<<",\n"
+class valueObj:
+	def __init__(self,value):
+		self.val = value
+	def value(self):
+		return self.val
+	def setValue(self,value):
+		self.val = value
 class ScriptDlg(QDialog, ui_pprescripts.Ui_scriptDlg):
 	def __init__(self,parent=None):
+		self.loading = True
 		super(ScriptDlg,self).__init__(parent)
 		self.setupUi(self)
+		self.spinBox_3 = valueObj(0)
+		self.ID = mw.ID
+		self.tmpFolder = mw.rom.getFolder()
 		self.scriptNarc=ReadScriptNarc()
 		size=self.scriptNarc.btaf.getEntryNum()
 		for i in range(0,size):
 			self.chooseScript.addItem(unicode(i))
+		self.scriptTabs = {}
+		self.navScript.setExpandsOnDoubleClick(False)
+		self.navFunc.setExpandsOnDoubleClick(False)
+		self.navMov.setExpandsOnDoubleClick(False)
+		self.updateNav.setText("Update Navigator")
+		self.scr = scripts.script(self)
+		#for i in range(1,3):
+		#	eval("self.rockSmash"+str(i)+".setStyleSheet('background-color:#ff0000;')")
+		self.loading=False
+		self.navMode = False
+	def navigatorMode(self,flag):
+		for tab in self.scriptTabs:
+			for t in self.scriptTabs[tab]:
+				t[1].setReadOnly(flag)
+		self.navMode = flag
+	def compile(self):
+		# compile the scripts now...
+		self.scr.parseNavigation()
+		#scripts.compile(self)
+		return
+	def dump(self):
+		self.scr.readScript()
+		QtCore.QMetaObject.connectSlotsByName(self)
+		return
+	def addScript(self):
+		# add a new script + tab to the ui
+		self.appendTab("scr")
+		c = len(self.scriptTabs["scr"])
+		self.scriptOrdList.addItem("Script %i"%c)
+	def appendTab(self,tab):
+		self.tabnames = {
+"scr":[self.scriptTabWidget],
+"func":[self.funcTabWidget],
+"mov":[self.movTabWidget]}
+		c = len(self.scriptTabs[tab])
+		self.scriptTabs[tab].append([])
+		self.scriptTabs[tab][c].append(QtGui.QWidget())
+		self.scriptTabs[tab][c][0].setObjectName("%s_tab_%i"%(tab,c))
+		self.scriptTabs[tab][c].append(QtGui.QTextBrowser(self.scriptTabs[tab][c][0]))
+		self.scriptTabs[tab][c][1].setUndoRedoEnabled(True)
+		self.scriptTabs[tab][c][1].setReadOnly(self.navMode)
+		self.scriptTabs[tab][c][1].setOpenLinks(False)
+		self.scriptTabs[tab][c][1].setOpenExternalLinks(False)
+		self.scriptTabs[tab][c][1].setGeometry(QtCore.QRect(24, 24, 513, 345))
+		self.scriptTabs[tab][c][1].setObjectName("%s_browser_%i"%(tab,c))
+		self.tabnames[tab][0].addTab(self.scriptTabs[tab][c][0],"%s_%i"%(tab,c+1))
+		QtCore.QObject.connect(self.scriptTabs[tab][c][1], QtCore.SIGNAL("anchorClicked(QUrl)"), self.handleScriptUrl)
+		QtCore.QMetaObject.connectSlotsByName(self)
+	def addFunction(self):
+		self.appendTab("func")
+	def addMovement(self):
+		self.appendTab("mov")
+	# goto respective tabs and blah
+	def gotoNavScript(self, tree, s):
+		tabs = tree.text(s).split(" ")
+		self.gotoMapTab(str(tabs[0]),int(tabs[1]))		
+		return False
+	def gotoNavFunc(self, tree, f):
+		tabs = tree.text(f).split(" ")
+		self.gotoMapTab(str(tabs[0]),int(tabs[1]))		
+		return False
+	def gotoNavMov(self, tree, m):
+		tabs = tree.text(m).split(" ")
+		self.gotoMapTab(str(tabs[0]),int(tabs[1]))		
+		return False
+	def gotoCompileOutput(self):
+		self.tabWidget.setCurrentIndex(5)
+		pass
+	def gotoMapTab(self,tab,subtab):
+		tabs = {"Script":[0,"script"],"Function":[1,"func"],"Movement":[2,"mov"]}
+		self.tabWidget.setCurrentIndex(tabs[tab][0])
+		eval("self.%sTabWidget.setCurrentIndex(%i)"%(tabs[tab][1],subtab-1))
+	def handleScriptUrl(self,url):
+		#using QUrl
+		self.gotoMapTab(str(url.scheme()).capitalize(),int(url.authority()))
+	def dumpAll(self):
+		if 1: return
+		del(self.scr)
+		self.scr = scripts.script(self,False)
+		saveout = sys.stdout
+		outscript = open('fullscript.txt', 'w')
+		sys.stdout = outscript
+		for num in range(self.scriptNarc.btaf.getEntryNum()):
+			self.spinBox_3.setValue(num)
+			self.scr.readScript()
+		sys.stdout = saveout
+		outscript.close()
+		exit(0)
 	def updateScript(self,n):
+		if self.loading:
+			return
 		num=self.chooseScript.currentIndex()
-		if num < mw.Of[1] or num > mw.Of[2]:
+		self.spinBox_3.setValue(num)
+		"""if num < mw.Of[1] or num > mw.Of[2]:
 			self.scr=scripts.scriptFile(self.scriptNarc.gmif.files[num], mw.ID)
 			self.scriptEdit.setPlainText(self.scr.getScript())
 			self.orderEdit.setPlainText(self.scr.getOrders())
 		else:
-			self.scriptEdit.setPlainText("Cannot Edit This File")
+			self.scriptEdit.setPlainText("Cannot Edit This File")"""
+		self.dump()
+		self.compile()
+class pseudoTrNames:
+	def __init__(self):
+		self.strlist = ["ー",
+"Kenta",
+"Mary",
+"Al",
+"Sawako",
+"Elena",
+"Dan",
+"Gorou",
+"Eli",
+"Mikiya",
+"Chiharu",
+"Pod",
+"Dent",
+"Kone",
+"Akiho",
+"Matsuri",
+"Ushio",
+"Minoru",
+"Kumi and Rumi",
+"Yuuri",
+"Tomomi",
+"Aloe",
+"Arty",
+"Chamomile",
+"Yacon",
+"Fuuro",
+"Morito",
+"Yasuko",
+"Miguel",
+"Kiri",
+"Osamu",
+"Millie",
+"Mayo and Maya",
+"Katsumi",
+"Kana",
+"Scott",
+"Tetsuzou",
+"Zack",
+"Iwao",
+"Kuniyuki",
+"Ayumi",
+"Toshihiro",
+"Norimasa",
+"Annette",
+"Michael",
+"Chihiro",
+"George",
+"Takuya",
+"Paul",
+"Jonathan",
+"Mallika",
+"Site",
+"Inori",
+"Chelon",
+"Chelon",
+"Chelon",
+"Chelon",
+"Chelon",
+"Chelon",
+"Belle",
+"Belle",
+"Belle",
+"Grunt",
+"Grunt",
+"N",
+"N",
+"Tomohiko",
+"Roland",
+"Ayano",
+"Collett",
+"Souichi",
+"Yoshiaki",
+"Katsuji",
+"Genta",
+"Eisaku",
+"Ryan",
+"Norihiro",
+"Eddie",
+"Matthew",
+"●",
+"●",
+"Grunt",
+"Bobby",
+"John",
+"Shuhei",
+"Takahiro",
+"Yoshio",
+"Noriko",
+"Satomi",
+"N",
+"Chelon",
+"Chelon",
+"Chelon",
+"Michiko",
+"Momoko",
+"Etsuko",
+"Chiaki",
+"Terminus",
+"Misato",
+"Asami",
+"Stella",
+"Saya",
+"Hitomi",
+"Johan",
+"Naoto",
+"Takumi",
+"Ryuuhei",
+"Kimiko",
+"Yoshihiko",
+"Greg",
+"Teppei",
+"Kentaro",
+"Akihito",
+"Naoyuki",
+"Steve",
+"Tomofumi",
+"Acari",
+"Naoko",
+"Yuuma",
+"Reiji",
+"Psycho",
+"Lynn",
+"Rob",
+"Richy",
+"Taijou",
+"Cliff",
+"●",
+"Munenori",
+"Tetsuharu",
+"Tony",
+"Roberto",
+"Bamboo",
+"Iris",
+"Shaga",
+"Eikichi",
+"Ryuji",
+"Tetsuya",
+"Shinnosuke",
+"Kenjirou",
+"Teichoic",
+"Shingo",
+"Kouhei",
+"Akira",
+"Tomoki",
+"Retsuji",
+"Keita",
+"Shouta",
+"Kazuki",
+"Tomohiro",
+"Kazutomo",
+"Kenichi",
+"Hirokazu",
+"Sachiko",
+"Susumu",
+"Mikihiro",
+"Tomoko",
+"Anna",
+"Jim and Sub",
+"Amy",
+"Makoto",
+"Ri",
+"Minako",
+"Sizwe",
+"Kunimi",
+"Miyuki",
+"Katsunori",
+"Hilonobu",
+"Kazuya",
+"Masasi",
+"Ryouta",
+"Koichi",
+"Atsuya",
+"Taka and Shige",
+"Hiro and Shin",
+"Taku and Yasu",
+"Mana and Sae",
+"Amy and Yuki",
+"Bob",
+"Chester",
+"Kiyomi",
+"Philip",
+"Kyouji",
+"Yutaka",
+"Shinya",
+"Akito",
+"Alan",
+"Shizuka",
+"Shinobu",
+"Annie",
+"Makiko",
+"Shiho",
+"Alex",
+"Randy",
+"Katsuhiko",
+"Gaku",
+"Noboru",
+"Jack",
+"●",
+"Yosuke",
+"Kelly",
+"Rick",
+"Kankichi",
+"Ginji",
+"Tamotsu",
+"●",
+"Marina",
+"Hiroto",
+"Tomo",
+"Hiroki",
+"Hadzuki",
+"Mitsuyo",
+"Robert",
+"Satsuki",
+"Mikiko",
+"Hikaru",
+"Taiki",
+"Kensuke",
+"Tadashi",
+"N",
+"●",
+"●",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Shikimi",
+"Renbu",
+"Gima",
+"Katorea",
+"Gechisu",
+"Rowe",
+"Shun",
+"Nozomi",
+"Yuusaku",
+"Masayuki",
+"Kaori",
+"Lisa",
+"Nagaaki",
+"Motoki",
+"Takashi",
+"Jiro",
+"Sayaka",
+"Asuka",
+"Keigo",
+"David",
+"Rikiya",
+"Teruyuki",
+"Tatsuma",
+"Chisato",
+"Toushi",
+"Misuzu",
+"Hsiao",
+"Takafumi",
+"Takaaki",
+"Ron",
+"Maria",
+"Taiga",
+"Julia",
+"Megumi",
+"Terry",
+"Nesuzu",
+"Reiko",
+"Madoka",
+"Claire",
+"Yuuka",
+"●",
+"Suguru",
+"Yuji",
+"Eiji",
+"Kent",
+"●",
+"Yuugo",
+"Kim",
+"Grunt",
+"●",
+"Grunt",
+"Grunt",
+"●",
+"Natsuki",
+"●",
+"●",
+"Fuyuta",
+"Michael",
+"●",
+"Chelon",
+"Chelon",
+"Chelon",
+"Keen",
+"Gansuke",
+"Mizuho",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Marie",
+"Elena",
+"Elena",
+"Elena",
+"Annette",
+"James",
+"Alex",
+"Alex",
+"Alex",
+"Randy",
+"Marco",
+"Tony",
+"Tony",
+"Tony",
+"Roberto",
+"Daisuke",
+"Dan",
+"Dan",
+"Dan",
+"Bob",
+"Mike",
+"Bobby",
+"Bobby",
+"Bobby",
+"John",
+"Taka and Shige",
+"Taka and Shige",
+"Hiro and Shin",
+"Hiro and Shin",
+"Taku and Yasu",
+"Taku and Yasu",
+"Tatsu and Masa",
+"Katsu and Gou",
+"Mana and Sae",
+"Mana and Sae",
+"Amy and Yuki",
+"Amy and Yuki",
+"Mako and Kaho",
+"Ai and Sora",
+"Miku and Sae",
+"Rika",
+"Manabu",
+"Kozue",
+"Lucy",
+"Tatsuya",
+"Allen",
+"Sayuri",
+"Hiroyuki",
+"Ikue",
+"Hisashi",
+"Nana",
+"Yoshinori",
+"Ikumi",
+"Sophie",
+"Anthony",
+"Emilia",
+"Masaomi",
+"Fumihito",
+"Yuki",
+"Hiroshi",
+"Kesako",
+"Masafumi",
+"Koji",
+"Yurie",
+"Nanako",
+"Toshio",
+"Atsuko",
+"Nobuhige",
+"Patty",
+"Hiromu",
+"Ryouichi",
+"Fumie",
+"Tsukasa",
+"Yayoi",
+"Kazumasa",
+"Eitarou",
+"Reika",
+"David",
+"Shouichi",
+"Charlie",
+"Pierre",
+"Jeff",
+"Erica",
+"Hidzuki",
+"Daisaku",
+"Mayuko",
+"Motoyasu",
+"Yuumi",
+"Tomoya",
+"Chelon",
+"Chelon",
+"Chelon",
+"Nobori",
+"Adeku",
+"Hayata",
+"Fuuka",
+"Shoko",
+"Yusuke",
+"Daniel",
+"Youhei",
+"Tetsuji",
+"Kenkichi",
+"Motofumi",
+"Saeco",
+"Chan",
+"Gakuji",
+"Shinpei",
+"Yasuo",
+"Mirai",
+"Tatsumi",
+"Nozomu",
+"Jan",
+"Toshie",
+"Jem",
+"Ann",
+"Akihiro",
+"Takato",
+"Ryousuke",
+"Tatsuhiko",
+"Morihide",
+"Koutarou",
+"Yosuto",
+"Shigehiro",
+"Komaki",
+"May",
+"Kumiko",
+"Takao",
+"Hirofumi",
+"Peter",
+"Akihiko",
+"Natsumi",
+"Kyoko",
+"Hitoha",
+"Yuko",
+"Haru and Chica",
+"Enna and Lena",
+"Genya",
+"Takuji",
+"Maiko",
+"Yurika",
+"Shelly",
+"Yuuta",
+"Mamoru",
+"Aki",
+"Nobukatsu",
+"Hirotaka",
+"Keisuke",
+"Satoko",
+"Yumiko",
+"Lena",
+"Junichi",
+"Shiori",
+"Hitoshi",
+"Takuma",
+"Satoru",
+"Kazuho",
+"Tomotaku",
+"Norihiro",
+"Tsunekazu",
+"Shuusaku",
+"Hiroko",
+"Takurou",
+"Masao",
+"Hiromi",
+"Emi",
+"Carlos",
+"Hiroaki",
+"Karen",
+"Rosa",
+"Ken",
+"Miki",
+"Gakuto",
+"Eliza",
+"Sousuke",
+"Grace",
+"Miho",
+"Toshinobu",
+"Belle",
+"Belle",
+"Belle",
+"Belle",
+"Belle",
+"Belle",
+"●",
+"Belle",
+"Belle",
+"Belle",
+"Koton",
+"Ouchi",
+"Pat",
+"Shouhei",
+"Koharu",
+"Charles",
+"Belle",
+"Belle",
+"Belle",
+"●",
+"●",
+"●",
+"Elinor",
+"Etsuya",
+"Naoki",
+"Aya",
+"Aya",
+"Carroll",
+"Yuki",
+"Drake",
+"●",
+"●",
+"Trish",
+"Kuadona",
+"Jirion",
+"Kenji",
+"●",
+"Nobuhiko",
+"Shinji",
+"Yokari",
+"Jun",
+"Claude",
+"Shunsuke",
+"●",
+"Natsumi",
+"Fuyuka",
+"Haruo",
+"Akira",
+"Chelon",
+"Chelon",
+"Chelon",
+"Morimoto",
+"Yukiko",
+"Morgan",
+"Hideaki",
+"Masami",
+"Susan",
+"Mile",
+"Mylene",
+"Shinichi",
+"Yoshie",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"Grunt",
+"●",
+"●",
+"●",
+"●",
+"●",
+"Tsukimi",
+"Renbu",
+"Gima",
+"Katoreya",
+"Shikona",
+"Shigeki",
+"Eisuke",
+"Youta",
+"Natsuki",
+"Louis",
+"Michiru",
+"Maki",
+"Kota",
+"Yasuhiro",
+"Nodoka",
+"Toru",
+"Mariko",
+"Chie",
+"Chise",
+"Midori",
+"Harry",
+"Toshiyuki",
+"Kanako",
+"N",
+"N",
+"Chelon",
+"Chelon",
+"Chelon",
+"Chelon",
+"Chelon",
+"Chelon",
+"Belle",
+"Belle",
+"Belle",
+"Grunt",
+"Grunt",
+"Grunt",
+"Mickey",
+"Raymond",
+"Edmond",
+"Charles",
+"Elinor",
+"Etsuya",
+"Yuichi",
+"Yuichi",
+"Nao",
+"Nao",
+"Grunt",
+"Grunt",
+"Grunt",
+"Tatsurou",
+"Kudari",
+"Johnny"]
+		self.strlist = ["ー",
+"ケンタ",
+"マリ",
+"アル",
+"サワコ",
+"エレナ",
+"ダン",
+"ゴロウ",
+"エリ",
+"ミキヤ",
+"チハル",
+"ポッド",
+"デント",
+"コーン",
+"アキホ",
+"マツリ",
+"ウシオ",
+"ミノル",
+"クミとルミ",
+"ユウリ",
+"トモミ",
+"アロエ",
+"アーティ",
+"カミツレ",
+"ヤーコン",
+"フウロ",
+"モリト",
+"ヤスコ",
+"ミゲル",
+"キリ",
+"オサム",
+"ミリー",
+"マヨとマヤ",
+"カツミ",
+"カナ",
+"スコット",
+"テツゾウ",
+"ザック",
+"イワオ",
+"クニユキ",
+"アユミ",
+"トシヒロ",
+"ノリマサ",
+"アネット",
+"マイケル",
+"チヒロ",
+"ジョージ",
+"タクヤ",
+"ポール",
+"ジョナサン",
+"マリカ",
+"サイト",
+"イノリ",
+"チェレン",
+"チェレン",
+"チェレン",
+"チェレン",
+"チェレン",
+"チェレン",
+"ベル",
+"ベル",
+"ベル",
+"したっぱ",
+"したっぱ",
+"Ｎ",
+"Ｎ",
+"トモヒコ",
+"ロラン",
+"アヤノ",
+"コレット",
+"ソウイチ",
+"ヨシアキ",
+"カツジ",
+"ゲンタ",
+"エイサク",
+"ライアン",
+"ノリヒロ",
+"エディ",
+"マシュー",
+"●",
+"●",
+"したっぱ",
+"ボビー",
+"ジョン",
+"シュウヘイ",
+"タカヒロ",
+"ヨシオ",
+"ノリコ",
+"サトミ",
+"Ｎ",
+"チェレン",
+"チェレン",
+"チェレン",
+"ミチコ",
+"モモコ",
+"エツコ",
+"チアキ",
+"テルミ",
+"ミサト",
+"アサミ",
+"ステラ",
+"サヤ",
+"ヒトミ",
+"ヨハン",
+"ナオト",
+"タクミ",
+"リュウヘイ",
+"キミコ",
+"ヨシヒコ",
+"ツヨシ",
+"テッペイ",
+"ケンタロウ",
+"アキヒト",
+"ナオユキ",
+"スティーブ",
+"トモフミ",
+"アカリ",
+"ナオコ",
+"ユウマ",
+"レイジ",
+"サイコ",
+"リン",
+"ロブ",
+"リイチ",
+"タイゾウ",
+"クリフ",
+"●",
+"ムネノリ",
+"テツハル",
+"トニー",
+"ロベルト",
+"ハチク",
+"アイリス",
+"シャガ",
+"エイキチ",
+"リュウジ",
+"テツヤ",
+"シンノスケ",
+"ケンジロウ",
+"テイコ",
+"シンゴ",
+"コウヘイ",
+"アキラ",
+"トモキ",
+"レツジ",
+"ケイタ",
+"ショウタ",
+"カズキ",
+"トモヒロ",
+"カズトモ",
+"ケンイチ",
+"ヒロカズ",
+"サチコ",
+"ススム",
+"ミキヒロ",
+"トモコ",
+"アンナ",
+"ジムとサブ",
+"エイミ",
+"マコト",
+"リ",
+"ミナコ",
+"シズエ",
+"クニミ",
+"ミユキ",
+"カツノリ",
+"ヒロノブ",
+"カズヤ",
+"マサシ",
+"リョウタ",
+"コウイチ",
+"アツヤ",
+"タカとシゲ",
+"ヒロとシン",
+"タクとヤス",
+"マナとサエ",
+"アミとユキ",
+"ボブ",
+"チェスター",
+"キヨミ",
+"フィリップ",
+"キョウジ",
+"ユタカ",
+"シンヤ",
+"アキト",
+"アラン",
+"シズカ",
+"シノブ",
+"アニー",
+"マキコ",
+"シホ",
+"アレックス",
+"ランディ",
+"カツヒコ",
+"ガク",
+"ノボル",
+"ジャック",
+"●",
+"ヨウスケ",
+"ケリー",
+"リック",
+"カンキチ",
+"ギンジ",
+"タモツ",
+"●",
+"マリナ",
+"ヒロト",
+"トモ",
+"ヒロキ",
+"ハヅキ",
+"ミツヨ",
+"ロバート",
+"サツキ",
+"ミキコ",
+"ヒカル",
+"タイキ",
+"ケンスケ",
+"タダシ",
+"Ｎ",
+"●",
+"●",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"シキミ",
+"レンブ",
+"ギーマ",
+"カトレア",
+"ゲーチス",
+"ロウ",
+"シュン",
+"ノゾミ",
+"ユウサク",
+"マサユキ",
+"カオリ",
+"リサ",
+"ナガアキ",
+"モトキ",
+"タカシ",
+"ジロウ",
+"サヤカ",
+"アスカ",
+"ケイゴ",
+"デビッド",
+"リキヤ",
+"テルユキ",
+"タツマ",
+"チサト",
+"トウシ",
+"ミスズ",
+"シャオ",
+"タカフミ",
+"タカアキ",
+"ロン",
+"マリア",
+"タイガ",
+"ユリア",
+"メグミ",
+"テリー",
+"スズネ",
+"レイコ",
+"マドカ",
+"クレア",
+"ユウカ",
+"●",
+"スグル",
+"ユウジ",
+"エイジ",
+"ケント",
+"●",
+"ユウゴ",
+"キム",
+"したっぱ",
+"●",
+"したっぱ",
+"したっぱ",
+"●",
+"ナツキ",
+"●",
+"●",
+"フユタ",
+"ミハル",
+"●",
+"チェレン",
+"チェレン",
+"チェレン",
+"キーン",
+"ガンスケ",
+"ミズホ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"マリー",
+"エレナ",
+"エレナ",
+"エレナ",
+"アネット",
+"ジェームス",
+"アレックス",
+"アレックス",
+"アレックス",
+"ランディ",
+"マルコ",
+"トニー",
+"トニー",
+"トニー",
+"ロベルト",
+"ダイスケ",
+"ダン",
+"ダン",
+"ダン",
+"ボブ",
+"マイク",
+"ボビー",
+"ボビー",
+"ボビー",
+"ジョン",
+"タカとシゲ",
+"タカとシゲ",
+"ヒロとシン",
+"ヒロとシン",
+"タクとヤス",
+"タクとヤス",
+"タツとマサ",
+"カツとゴウ",
+"マナとサエ",
+"マナとサエ",
+"アミとユキ",
+"アミとユキ",
+"カホとマコ",
+"アイとソラ",
+"ミクとサエ",
+"リカ",
+"マナブ",
+"コズエ",
+"ルーシー",
+"タツヤ",
+"アレン",
+"サユリ",
+"ヒロユキ",
+"イクエ",
+"ヒサシ",
+"ナナ",
+"ヨシノリ",
+"イクミ",
+"ソフィ",
+"アンソニー",
+"エミリア",
+"マサオミ",
+"フミヒト",
+"ユウキ",
+"ヒロシ",
+"ケサコ",
+"マサフミ",
+"コウジ",
+"ユリエ",
+"ナナコ",
+"トシオ",
+"アツコ",
+"ノブシゲ",
+"パティ",
+"ヒロム",
+"リョウイチ",
+"フミエ",
+"ツカサ",
+"ヤヨイ",
+"カズマサ",
+"エイタロウ",
+"レイカ",
+"デヴィッド",
+"ショウイチ",
+"チャーリー",
+"ピエール",
+"ジェフ",
+"アリカ",
+"ヒヅキ",
+"ダイサク",
+"マユコ",
+"モトヤス",
+"ユウミ",
+"トモヤ",
+"チェレン",
+"チェレン",
+"チェレン",
+"ノボリ",
+"アデク",
+"ハヤタ",
+"フウカ",
+"ショウコ",
+"ユウスケ",
+"ダニエル",
+"ヨウヘイ",
+"テツジ",
+"ケンキチ",
+"モトフミ",
+"サエコ",
+"チャン",
+"ガクジ",
+"シンペイ",
+"ヤスオ",
+"ミライ",
+"タツミ",
+"ノゾム",
+"ヤン",
+"トシエ",
+"ジェム",
+"アン",
+"アキヒロ",
+"タカト",
+"リョウスケ",
+"タツヒコ",
+"モリヒデ",
+"コウタロウ",
+"ヤスト",
+"シゲヒロ",
+"コマキ",
+"メイ",
+"クミコ",
+"タカオ",
+"ヒロフミ",
+"ピーター",
+"アキヒコ",
+"ナツミ",
+"キョウコ",
+"ヒトハ",
+"ユウコ",
+"ハルとチカ",
+"エナとリナ",
+"ゲンヤ",
+"タクジ",
+"マイコ",
+"ユリカ",
+"シェリー",
+"ユウタ",
+"マモル",
+"アキ",
+"ノブカツ",
+"ヒロタカ",
+"ケイスケ",
+"サトコ",
+"ユミコ",
+"レナ",
+"ジュンイチ",
+"シオリ",
+"ヒトシ",
+"タクマ",
+"サトル",
+"カズホ",
+"トモタカ",
+"ヒロノリ",
+"ツネカズ",
+"シュウサク",
+"ヒロコ",
+"タクロウ",
+"マサオ",
+"ヒロミ",
+"エミ",
+"カルロス",
+"ヒロアキ",
+"カレン",
+"ローザ",
+"ケン",
+"ミキ",
+"ガクト",
+"エリザ",
+"ソウスケ",
+"グレース",
+"ミホ",
+"トシノブ",
+"ベル",
+"ベル",
+"ベル",
+"ベル",
+"ベル",
+"ベル",
+"●",
+"ベル",
+"ベル",
+"ベル",
+"コトノ",
+"オウチ",
+"パット",
+"ショウヘイ",
+"コハル",
+"チャールズ",
+"ベル",
+"ベル",
+"ベル",
+"●",
+"●",
+"●",
+"エリナ",
+"エツヤ",
+"ナオキ",
+"アヤ",
+"アヤ",
+"キャロル",
+"ユウキ",
+"ドレイク",
+"●",
+"●",
+"トリッシュ",
+"クアドナ",
+"ジリオン",
+"ケンジ",
+"●",
+"ノブヒコ",
+"シンジ",
+"ユカリ",
+"ジュン",
+"クロード",
+"シュンスケ",
+"●",
+"ナツミ",
+"フユカ",
+"ハルオ",
+"アキラ",
+"チェレン",
+"チェレン",
+"チェレン",
+"モリモト",
+"ユキコ",
+"モーガン",
+"ヒデアキ",
+"マサミ",
+"スーザン",
+"マイル",
+"ミレーヌ",
+"シンイチ",
+"ヨシエ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"●",
+"●",
+"●",
+"●",
+"●",
+"シキミ",
+"レンブ",
+"ギーマ",
+"カトレア",
+"シロナ",
+"シゲキ",
+"エイスケ",
+"ヨウタ",
+"ナツキ",
+"ルイ",
+"ミチル",
+"マキ",
+"コウタ",
+"ヤスヒロ",
+"ノドカ",
+"トオル",
+"マリコ",
+"チエ",
+"チセ",
+"ミドリ",
+"ハリー",
+"トシユキ",
+"カナコ",
+"Ｎ",
+"Ｎ",
+"チェレン",
+"チェレン",
+"チェレン",
+"チェレン",
+"チェレン",
+"チェレン",
+"ベル",
+"ベル",
+"ベル",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"ミッキー",
+"レイモンド",
+"エドモンド",
+"チャールズ",
+"エリナ",
+"エツヤ",
+"ユウイチ",
+"ユウイチ",
+"ナオ",
+"ナオ",
+"したっぱ",
+"したっぱ",
+"したっぱ",
+"タツロウ",
+"クダリ",
+"ジョニー"]
 class TrainerEditDlg(QDialog, ui_ppretredit.Ui_TrainerEditDlg):
 	def __init__(self,parent=None):
 		super(TrainerEditDlg,self).__init__(parent)
 		self.setupUi(self)
-		self.msgNarc=ReadMsgNarc()
+		#self.msgNarc=ReadMsgNarc()
 		self.trNarc=ReadTrNarc()
 		self.trPokeNarc=ReadTrPokeNarc()
 		size=self.trNarc.btaf.getEntryNum()
-		trClasses=poketext.PokeTextData(self.msgNarc.gmif.files[mw.TN[11]])
-		trClasses.decrypt()
-		self.trNames=poketext.PokeTextData(self.msgNarc.gmif.files[mw.TN[12]])
-		self.trNames.decrypt()
-		self.class_2.addItems(trClasses.strlist)
-		for i in range(0, len(self.trNames.strlist)):
-			self.chooseTrainer.addItem(str(i)+"-"+self.trNames.strlist[i])   
-		pokeNames=poketext.PokeTextData(self.msgNarc.gmif.files[mw.TN[5]])
-		pokeNames.decrypt()
-		self.pN=[]
-		for i in range(0, 494):
-			self.pN.append(pokeNames.strlist[i])
-		moveNames=poketext.PokeTextData(self.msgNarc.gmif.files[mw.TN[4]])
-		moveNames.decrypt()
-		self.mN = []
-		for i in range(0, len(moveNames.strlist)):
-			self.mN.append(moveNames.strlist[i])
-		itemNames=poketext.PokeTextData(self.msgNarc.gmif.files[mw.TN[3]])
-		itemNames.decrypt()
-		self.iN=[]
-		for i in range(0, len(itemNames.strlist)):
-			self.iN.append(itemNames.strlist[i])
+		notext = False
+		if mw.ID == 0x57:
+			notext = True
+		if not notext:
+			trClasses=poketext.PokeTextData(self.msgNarc.gmif.files[mw.TN[11]])
+			trClasses.decrypt()
+			self.trNames=poketext.PokeTextData(self.msgNarc.gmif.files[mw.TN[12]])
+			self.trNames.decrypt()
+			self.class_2.addItems(trClasses.strlist)
+			for i in range(0, len(self.trNames.strlist)):
+				self.chooseTrainer.addItem(str(i)+"-"+self.trNames.strlist[i])   
+			pokeNames=poketext.PokeTextData(self.msgNarc.gmif.files[mw.TN[5]])
+			pokeNames.decrypt()
+			self.pN=[]
+			for i in range(0, 494):
+				self.pN.append(pokeNames.strlist[i])
+			moveNames=poketext.PokeTextData(self.msgNarc.gmif.files[mw.TN[4]])
+			moveNames.decrypt()
+			self.mN = []
+			for i in range(0, len(moveNames.strlist)):
+				self.mN.append(moveNames.strlist[i])
+			itemNames=poketext.PokeTextData(self.msgNarc.gmif.files[mw.TN[3]])
+			itemNames.decrypt()
+			self.iN=[]
+			for i in range(0, len(itemNames.strlist)):
+				self.iN.append(itemNames.strlist[i])
+		else:
+			self.trNames = pseudoTrNames()
+			self.iN = []
+			for i in range(700):
+				self.iN.append(str(i))
+			self.mN = []
+			for i in range(700):
+				self.mN.append(str(i))
+			self.pN = []
+			for i in range(700):
+				self.pN.append(str(i))
+			self.chooseTrainer.addItems(self.trNames.strlist)
+			self.class_2.addItems(["PKMN Trainer",
+"PKMN Trainer",
+"Youngster",
+"Lass",
+"School Boy",
+"School Boy",
+"Tennis Player",
+"Foot-Baller",
+"Waiter",
+"Waitress",
+"Gym Leader",
+"Gym Leader",
+"Gym Leader",
+"Day-Care Teacher",
+"Day-Care Student",
+"Day-Care Student",
+"Twin Girls",
+"Pokemon Breeder",
+"Pokemon Breeder",
+"Gym Leader",
+"Gym Leader",
+"Gym Leader",
+"Gym Leader",
+"Gym Leader",
+"Pokemon Ranger",
+"Pokemon Ranger",
+"Worker",
+"Backpacker",
+"Backpacker",
+"Fisherman",
+"Musician",
+"Dancer",
+"Clown",
+"Artist",
+"Bakery",
+"Psychic",
+"Psychic",
+"Pokemon Trainer",
+"Pokemon Trainer",
+"Team Plasma",
+"PKMN Trainer",
+"Rich Boy",
+"Rich Girl",
+"Pilot",
+"Worker",
+"Basketball Player",
+"Researcher",
+"Team Plasma",
+"Office Lady",
+"Elite Trainer",
+"Elite Trainer",
+"Karate King",
+"Researcher",
+"Soccer Player",
+"Gym Leader",
+"Gym Leader",
+"Gym Leader",
+"Skin Heads",
+"Cleaning Member",
+"Poké Maniac",
+"Poké Maniac",
+"Doctor",
+"Nurse",
+"Double Team",
+"Battle Girl",
+"Parasol Lady",
+"Business Man",
+"Business Man",
+"Pokéfan",
+"Pokéfan",
+"Veteran Trainer",
+"Veteran Trainer",
+"Gangster",
+"Baseball Player",
+"Hiker",
+"Lady",
+"Gentleman",
+"Team Plasma",
+"Elite Four",
+"Elite Four",
+"Elite Four",
+"Elite Four",
+"Team Plasma",
+"Railroad Worker",
+"Swimmer",
+"Bikini Lady",
+"Police Officer",
+"Maid",
+"Subway Master",
+"Champion",
+"Cycling",
+"Cycling",
+"Bike-lover",
+"ブルジョワールけ",
+"ブルジョワールけ",
+"ブルジョワールけ",
+"ブルジョワールけ",
+"Game Freak",
+"ブルジョワールけ",
+"ブルジョワールけ",
+"PKMN Trainer",
+"Team Plasma",
+"Subway Master",
+"PKMN Trainer",
+"PKMN Trainer"])
 		self.item1.addItems(self.iN)
 		self.item2.addItems(self.iN)
 		self.item3.addItems(self.iN)
@@ -3093,8 +4505,9 @@ class TrainerEditDlg(QDialog, ui_ppretredit.Ui_TrainerEditDlg):
 		QtCore.QObject.connect(self.itemBool, QtCore.SIGNAL("clicked()"), self.changedTrType)
 		QtCore.QObject.connect(self.attackBool, QtCore.SIGNAL("clicked()"), self.changedTrType)
 		QtCore.QMetaObject.connectSlotsByName(self)
+		self.multi = 0
 		self.adjustPokes(0)
-		#self.extractToSql()
+		self.extractToSql()
 	def changedTrType(self):
 		iBool = self.itemBool.isChecked()
 		aBool = self.attackBool.isChecked()
@@ -3198,7 +4611,8 @@ class TrainerEditDlg(QDialog, ui_ppretredit.Ui_TrainerEditDlg):
 		self.trtype = currenttrainer[0]
 		self.itemBool.setChecked((self.trtype&2)>>1)
 		self.attackBool.setChecked(self.trtype&1)
-		self.class_2.setCurrentIndex(currenttrainer[1]+(currenttrainer[2] << 8))
+		self.class_2.setCurrentIndex(currenttrainer[1])
+		self.multi = currenttrainer[2]
 		self.pokenum.setValue(currenttrainer[0x3])
 		self.numPokes = currenttrainer[0x3]
 		self.uc.setValue(currenttrainer[0xc])
@@ -3218,10 +4632,13 @@ class TrainerEditDlg(QDialog, ui_ppretredit.Ui_TrainerEditDlg):
 		self.adjustPokes(self.numPokes)
 		gs = False
 		pt = False
+		bw = False
 		if (mw.ID== 0x5353) or (mw.ID== 0x4748):
 			gs = True
 		elif mw.ID== 0x4c50:
 			pt = True
+		elif mw.ID== 0x57:
+			bw = True
 		if self.trtype == 0:
 			dsiz = 0x6
 		elif self.trtype == 1:
@@ -3230,7 +4647,7 @@ class TrainerEditDlg(QDialog, ui_ppretredit.Ui_TrainerEditDlg):
 			dsiz = 0x8
 		elif self.trtype == 3:
 			dsiz = 0x10
-		if pt or gs:
+		if pt or gs or bw:
 			dsiz += 2
 		pokes = []
 		for i in range(0,self.numPokes):
@@ -3256,6 +4673,7 @@ class TrainerEditDlg(QDialog, ui_ppretredit.Ui_TrainerEditDlg):
 				eval("self.pokeItem"+str(h)+".setCurrentIndex(0)")
 				eval("self.pokeItem"+str(h)+".setEnabled(False)")
 			if (self.trtype == 1) or (self.trtype == 3):
+				if mw.ID == 0x57:cPoke.ReadUInt16()
 				for i in range(1,5):
 					eval("self.attack"+str(h)+"_"+str(i)+".setEnabled(True)")
 					eval("self.attack"+str(h)+"_"+str(i)+".setCurrentIndex(cPoke.ReadUInt16())")
@@ -3288,10 +4706,13 @@ class TrainerEditDlg(QDialog, ui_ppretredit.Ui_TrainerEditDlg):
 
 		gs = False
 		pt = False
+		bw = False
 		if (mw.ID== 0x5353) or (mw.ID== 0x4748):
 			gs = True
 		elif mw.ID== 0x4c50:
 			pt = True
+		elif mw.ID == 0x57:
+			bw = True
 		if self.trtype == 0:
 			dsiz = 0x6
 		elif self.trtype == 1:
@@ -3300,7 +4721,7 @@ class TrainerEditDlg(QDialog, ui_ppretredit.Ui_TrainerEditDlg):
 			dsiz = 0x8
 		elif self.trtype == 3:
 			dsiz = 0x10
-		if pt or gs:
+		if pt or gs or bw:
 			dsiz += 2
 
 		for h in range(0,self.numPokes):
@@ -3333,7 +4754,7 @@ class TrainerEditDlg(QDialog, ui_ppretredit.Ui_TrainerEditDlg):
 	def saveText(self):
 		textStr = self.trname.text()
 		self.trNames.strlist[self.chooseTrainer.currentIndex()] = unicode(textStr)
-		p=texttopoke.Makefile(self.trNames.strlist)
+		p=texttopoke.Makefile(self.trNames.strlist,True,True)
 		encrypt = poketext.PokeTextData(p)
 		encrypt.SetKey(0xD00E)
 		encrypt.encrypt()
@@ -3341,6 +4762,7 @@ class TrainerEditDlg(QDialog, ui_ppretredit.Ui_TrainerEditDlg):
 		WriteMsgNarc(self.msgNarc)
 		print "Wrote Trainer Name to Text NARC successfully!"#"""
 	def extractToSql(self):
+
 		iL=""
 		if mw.ID==0x5353:
 			iL+="hgss"
@@ -3352,6 +4774,8 @@ class TrainerEditDlg(QDialog, ui_ppretredit.Ui_TrainerEditDlg):
 			iL+="dp"
 		elif mw.ID==0x44:
 			iL+="dp"
+		elif mw.ID == 0x57:
+			iL+="bw"
 		lL=chr(mw.lang).lower()
 		sf=QFile(iL+"trainers"+lL+".sql")
 		sf.open(QIODevice.WriteOnly)
@@ -3394,7 +4818,8 @@ class TrainerEditDlg(QDialog, ui_ppretredit.Ui_TrainerEditDlg):
 		k = 0
 		for i in range (0,len(self.trNames.strlist)):
 			self.chooseTrainer.setCurrentIndex(i)
-			ts<<"("<<i<<",'"<<self.trNames.strlist[i]<<"','"<<self.class_2.currentText()<<"','"<<str(self.class_2.currentIndex())<<"','"<<self.pokenum.value()<<"','"<<(str(self.item1.currentIndex())+","+str(self.item2.currentIndex())+","+str(self.item3.currentIndex())+","+str(self.item4.currentIndex()))<<"','"<<(self.itemBool.isChecked()*2 + self.attackBool.isChecked())<<"','"<<self.doubleBool.isChecked()<<"')"
+			doubleVal = self.multi if mw.ID == 0x57 else self.doubleBool.isChecked()
+			ts<<"("<<i<<",'"<<self.trNames.strlist[i].decode("utf-8")<<"','"<<self.class_2.currentText()<<"','"<<str(self.class_2.currentIndex())<<"','"<<self.pokenum.value()<<"','"<<(str(self.item1.currentIndex())+","+str(self.item2.currentIndex())+","+str(self.item3.currentIndex())+","+str(self.item4.currentIndex()))<<"','"<<(self.itemBool.isChecked()*2 + self.attackBool.isChecked())<<"','"<<doubleVal<<"')"
 			for h in range(0,self.pokenum.value()):
 				tt<<"("<<k<<","<<i<<",'"
 				k+=1

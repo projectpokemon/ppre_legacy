@@ -204,7 +204,8 @@ class commands:
         return self.listName,self.listNum,self.listMov
 
 class script:
-    def __init__(self,smap):
+    def __init__(self,smap,useUi = True):
+        self.useUi = useUi
         self.dialog = smap
         self.game = "dp"
         if self.dialog.ID in (0x5353, 0x4748):
@@ -304,42 +305,73 @@ class script:
         #print self.movements
         
         #### UI Setup ####
-        self.tabnames = {
-"scr":[self.dialog.scriptTabWidget,self.scripts,self.dialog.navScript],
-"func":[self.dialog.funcTabWidget,self.functions,self.dialog.navFunc],
-"mov":[self.dialog.movTabWidget,self.movements,self.dialog.navMov]}
-        for tab in self.tabnames:
-            while self.tabnames[tab][0].count() > 0:
-                self.tabnames[tab][0].removeTab(0)
-            self.dialog.scriptTabs[tab] = []
-            t = 0
-            for s in self.tabnames[tab][1]:
-                self.dialog.scriptTabs[tab].append([])
-                self.dialog.scriptTabs[tab][t].append(QtGui.QWidget())
-                self.dialog.scriptTabs[tab][t][0].setObjectName("%s_tab_%i"%(tab,t))
-                self.dialog.scriptTabs[tab][t].append(QtGui.QTextBrowser(self.dialog.scriptTabs[tab][t][0]))
-                self.dialog.scriptTabs[tab][t][1].setUndoRedoEnabled(True)
-                self.dialog.scriptTabs[tab][t][1].setReadOnly(False)
-                self.dialog.scriptTabs[tab][t][1].setOpenLinks(False)
-                self.dialog.scriptTabs[tab][t][1].setOpenExternalLinks(False)
-                self.dialog.scriptTabs[tab][t][1].setGeometry(QtCore.QRect(24, 24, 513, 345))
-                self.dialog.scriptTabs[tab][t][1].setObjectName("%s_browser_%i"%(tab,t))
-                text = ""
-                for line in s:
-                    tmp = ""
-                    for arg in line:
-                        try:
-                            if ((arg >> 8)&0xFF) in (0x40,0x80):
-                                tmp += "%s "%hex(arg)
-                            else:
-                                raise Exception
-                        except:
-                            tmp += "%s "%str(arg)
-                    text += "%s\n"%tmp
-                self.dialog.scriptTabs[tab][t][1].setPlainText(text)
-                self.tabnames[tab][0].addTab(self.dialog.scriptTabs[tab][t][0],"%s_%i"%(tab,t+1))
-                QtCore.QObject.connect(self.dialog.scriptTabs[tab][t][1], QtCore.SIGNAL("anchorClicked(QUrl)"), self.dialog.handleScriptUrl)
-                t += 1
+        if self.useUi:
+            self.tabnames = {
+    "scr":[self.dialog.scriptTabWidget,self.scripts,self.dialog.navScript],
+    "func":[self.dialog.funcTabWidget,self.functions,self.dialog.navFunc],
+    "mov":[self.dialog.movTabWidget,self.movements,self.dialog.navMov]}
+            for tab in self.tabnames:
+                while self.tabnames[tab][0].count() > 0:
+                    self.tabnames[tab][0].removeTab(0)
+                self.dialog.scriptTabs[tab] = []
+                t = 0
+                for s in self.tabnames[tab][1]:
+                    self.dialog.scriptTabs[tab].append([])
+                    self.dialog.scriptTabs[tab][t].append(QtGui.QWidget())
+                    self.dialog.scriptTabs[tab][t][0].setObjectName("%s_tab_%i"%(tab,t))
+                    self.dialog.scriptTabs[tab][t].append(QtGui.QTextBrowser(self.dialog.scriptTabs[tab][t][0]))
+                    self.dialog.scriptTabs[tab][t][1].setUndoRedoEnabled(True)
+                    self.dialog.scriptTabs[tab][t][1].setReadOnly(False)
+                    self.dialog.scriptTabs[tab][t][1].setOpenLinks(False)
+                    self.dialog.scriptTabs[tab][t][1].setOpenExternalLinks(False)
+                    self.dialog.scriptTabs[tab][t][1].setGeometry(QtCore.QRect(24, 24, 513, 345))
+                    """#self.dialog.scriptTabs[tab][t][1].setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+                    self.dialog.scriptTabs[tab][t][1].setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
+                    findAct = QtGui.QAction("Find", self.dialog.scriptTabs[tab][t][1])
+                    findAct.triggered.connect(self.dialog.contextMenuFind)
+                    self.dialog.scriptTabs[tab][t][1].addAction(findAct)"""
+                    self.dialog.scriptTabs[tab][t][1].setObjectName("%s_browser_%i"%(tab,t))
+                    text = ""
+                    for line in s:
+                        tmp = ""
+                        for arg in line:
+                            try:
+                                if ((arg >> 8)&0xFF) in (0x40,0x80):
+                                    tmp += "%s "%hex(arg)
+                                else:
+                                    raise Exception
+                            except:
+                                tmp += "%s "%str(arg)
+                        text += "%s\n"%tmp
+                    self.dialog.scriptTabs[tab][t][1].setPlainText(text)
+                    self.tabnames[tab][0].addTab(self.dialog.scriptTabs[tab][t][0],"%s_%i"%(tab,t+1))
+                    QtCore.QObject.connect(self.dialog.scriptTabs[tab][t][1], QtCore.SIGNAL("anchorClicked(QUrl)"), self.dialog.handleScriptUrl)
+                    #QtCore.QObject.connect(self.dialog.scriptTabs[tab][t][1], QtCore.SIGNAL("customContextMenuRequested(QPoint)"), self.dialog.contextMenuFind)
+                    t += 1
+        else:
+            print "$$$$$$$$$$$$$$$$$$$$  SCRIPT %i  $$$$$$$$$$$$$$$$$$$$"%int(self.dialog.spinBox_3.value())
+            self.tabnames = {
+    "scr":[self.dialog.scriptTabWidget,self.scripts,self.dialog.navScript],
+    "func":[self.dialog.funcTabWidget,self.functions,self.dialog.navFunc],
+    "mov":[self.dialog.movTabWidget,self.movements,self.dialog.navMov]}
+            for tab in self.tabnames:
+                t = 0
+                for s in self.tabnames[tab][1]:
+                    text = ""
+                    for line in s:
+                        tmp = ""
+                        for arg in line:
+                            try:
+                                if ((arg >> 8)&0xFF) in (0x40,0x80):
+                                    tmp += "%s "%hex(arg)
+                                else:
+                                    raise Exception
+                            except:
+                                tmp += "%s "%str(arg)
+                        text += "%s\n"%tmp
+                    t += 1
+                    print "\n%s: %i\n"%(tab,t)
+                    print text
     def parseNavigation(self):
         self.cs = 0
         self.tabnames = {

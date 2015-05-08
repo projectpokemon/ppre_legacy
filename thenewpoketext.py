@@ -82,7 +82,7 @@ def Rewrite(xmlname):
 
     archive = ReadMsgNarc()
 
-    print xmlr.filelist
+    #print xmlr.filelist
 
     for fileid in xmlr.filelist:
         print fileid

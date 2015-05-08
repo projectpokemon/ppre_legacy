@@ -9,7 +9,7 @@ def allowErrors():
     errorReport = True
     if not depends:
         import romerror
-def ToCode(text,sErrors=False):
+def ToCode(text,sErrors=False,compressed=False):
     if sErrors:
         errorReport = True
         if not depends:
@@ -66,16 +66,31 @@ def ToCode(text,sErrors=False):
             else:
                 data.append(unicodeparser.d[text[0:6-i]])
                 text = text[6-i:len(text)]            
+    if compressed:
+        data.append(0x1FF)
+        bits=[]
+        for i in range(0,len(data)):
+            for j in range(0,9):
+                bits.append((data[i]>>j)&1)
+        tmp_uint16=0
+        data=[]
+        data.append(0xF100)
+        for i in range(0,len(bits)):
+            if i%15==0 and i!=0:
+                data.append(tmp_uint16)
+                tmp_uint16=0
+            tmp_uint16|=(bits[i]<<(i%15))
+        data.append(tmp_uint16)
     data.append(0xffff)
     a = array.array('H', data)
     return data
 
-def Makefile(textarr,sError=False):
+def Makefile(textarr,sError=False,compressed=False):
     base = len(textarr)*8 + 4
     ptrtable = []
     rawdata = []
     for i in range(len(textarr)):
-        data = ToCode(textarr[i],sError)
+        data = ToCode(textarr[i],sError,compressed)
         l=len(data)
         ptrtable.extend([base, l])
         rawdata.extend(data)
@@ -105,5 +120,6 @@ def Makefile(textarr,sError=False):
 
 #f.write(a.tostring())
 #f.close()
+
 
 

@@ -54,7 +54,9 @@ class PokeTextData(BinaryData16): #16 = mayor speed improvement
         for i in range(self.read16(0)):
             ptr, chars = self.ptrlist[i]    
             self.DecyptTxt(chars, i+1, ptr)
-            self.strlist.append(self.MakeString(chars, ptr))
+            m = self.MakeString(chars, ptr)
+            #print m
+            self.strlist.append(m)
     
     def encrypt(self):
         

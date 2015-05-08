@@ -7379,9 +7379,9 @@
 	</args>
 </command>
 <command id="139">
-	<name>StorePokeStored</name>
-	<description>StorePokeStored</description>
-	<format>StorePokeStored($1,$2,$3)</format>
+	<name>TeachMove</name>
+	<description>TeachMove Pokemon, moveSlot, moveId</description>
+	<format>TeachMove($1,$2,$3)</format>
 	<args>
 		<arg size="16" />
 		<arg size="16" />
@@ -9039,10 +9039,11 @@
 </command>
 <command id="362">
 	<name>TakePokeStored2</name>
-	<description>TakePokeStored2</description>
-	<format>TakePokeStored2($1,$2)</format>
+	<description>TakePokeStored2 tradeId, Level, Map</description>
+	<format>TakePokeStored2($1,$2,$3)</format>
 	<args>
-		<arg size="16" />
+		<arg size="8" />
+		<arg size="8" />
 		<arg size="16" />
 	</args>
 </command>
@@ -10757,12 +10758,12 @@
 </command>
 <command id="589">
 	<name>WildBattle2</name>
-	<description>WildBattle2</description>
+	<description>WildBattle2 natid level isShiny</description>
 	<format>WildBattle2($1,$2,$3)</format>
 	<args>
 		<arg size="16" />
-		<arg size="8" />
 		<arg size="16" />
+		<arg size="8" />
 	</args>
 </command>
 <command id="590">
